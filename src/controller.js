@@ -1,4 +1,6 @@
 import Word from "./WordModel.js"
+import { wordFetcher } from "./wordFetcher.js";
+import {parser} from "./parser.js"
 import validateModel from "./validators.js";
 
 export const getWord = async (req, res) => {
@@ -47,6 +49,20 @@ export const deleteWord = async (req, res) => {
     return res.status(204).json({message: "Item with ID " + id + " has been removed."})
   } catch (e) {
     return res.status(500).json({error: e})
+  }
+}
+
+export const getDLEWord = async(req, res) => {
+  const {word} = req.params;
+  console.log(word);
+  try {
+    const html = await wordFetcher(word);
+    if (html) {
+      return res.status(200).json({data: parser(html)})
+    }
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({error: e});
   }
 }
 
