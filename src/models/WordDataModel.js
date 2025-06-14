@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 
-const wordSchema = new mongoose.Schema(
+const wordDataSchema = new mongoose.Schema(
   {
     DLE: {
       word: String,
@@ -39,6 +39,6 @@ const wordSchema = new mongoose.Schema(
   },
 {collection: "words"})
 
-const Word = new mongoose.model("Word", wordSchema);
+const WordData = new mongoose.model("WordData", wordDataSchema);
 
-export default Word;
+export default WordData;

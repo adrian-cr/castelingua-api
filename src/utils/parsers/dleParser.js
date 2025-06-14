@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import isEmpty from "./validators.js"
 
 const parseEntryText = (entryHTML, $) => {
   let result = "";
@@ -44,7 +43,6 @@ const parseEntryText = (entryHTML, $) => {
   }
   return result;
 }
-
 const extractDefObj = (target, defHTML, $) => {
   const defContainer = defHTML;
   const entryNum = defContainer.find("span.n_acep").first().text().trim();
@@ -59,8 +57,6 @@ const extractDefObj = (target, defHTML, $) => {
   allChildren.each((i, el) => {
     const $el = $(el);
 
-
-
     if (el.tagName === "abbr") {
       const abbrText = $el.text().trim();
       if (!abbrText.includes("Sin") && !abbrText.includes("Ant")) {
@@ -74,9 +70,8 @@ const extractDefObj = (target, defHTML, $) => {
         } else {
           entryEnded = true;
           endAbbrs.push(abbrText);
-
         }
-      }
+      }//TODO: include "V. (ver)" abbreviations plus related term (e.g. "lo")
     } else if (el.tagName === "span") {
       const classes = $el.attr("class") || "";
       if (classes.includes("h")) {
@@ -98,7 +93,7 @@ const extractDefObj = (target, defHTML, $) => {
     const defObj = {
     entryNum,
     POS,
-    entry: parseEntryText(defContainer, $).trim()
+    definition: parseEntryText(defContainer, $).trim()
   };
 
   if (startAbbrs.length) defObj.startAbbrs = startAbbrs;
@@ -108,19 +103,18 @@ const extractDefObj = (target, defHTML, $) => {
   const synonyms = $(target).find('.c-word-list:has(abbr[title="Sinónimos o afines"]) .c-word-list__items li span span.sin').map((_, el) => $(el).text().trim()).get();
   const antonym = $(target).find('.c-word-list:has(abbr[title="Antónimo u opuesto"]) .c-word-list__items li span span.sin').map((_, el) => $(el).text().trim()).get();
   const antonyms = $(target).find('.c-word-list:has(abbr[title="Antónimos u opuestos"]) .c-word-list__items li span span.sin').map((_, el) => $(el).text().trim()).get();
-  defObj.synonyms = synonyms.length>0? synonyms : synonym.length>0? synonym : [];
-  defObj.antonyms = antonyms.length>0? antonyms : antonym.length>0? antonym : [];
+  defObj.synonyms = synonyms.length>0? synonyms : synonym.length>0? synonym : undefined;
+  defObj.antonyms = antonyms.length>0? antonyms : antonym.length>0? antonym : undefined;
   return defObj;
 }
-
 
 const parseDefinition = defHTML => {
   const $ = cheerio.load(defHTML);
   const result = {
     word: $(".c-page-header__title").text(),
     etymology: $(".c-text-intro").first().text(),
-    termDefinitions: [],
-    idioms: [],
+    entries: [],
+    phrases: [],
     relatedTerms: []
   };
 
@@ -131,15 +125,15 @@ const parseDefinition = defHTML => {
 
     if (defContainer.html()) {
       const defObj = extractDefObj(li, defContainer, $);
-      result.termDefinitions.push({
+      result.entries.push({
         ...{...defObj}
       });
     }
   });
 
-  // 2. Extract idioms: <h3> followed by <ol>
+  // 2. Extract idioms: <h3> followed by <ol> as phrases
   const idiomPairs = [];
-  $('h3').each((_, el) => {
+  $('h3:has(u)').each((_, el) => {
     const $el = $(el);
     const next = $el.next();
 
@@ -149,25 +143,25 @@ const parseDefinition = defHTML => {
   });
 
   idiomPairs.forEach(({ title, ol }) => {
-    const definitions = [];
+    const entries = [];
     ol.find('li').each((_, li) => {
       const defContainer = $(li).find(".c-definitions__item div");
       if (defContainer.html()) {
       const defObj = extractDefObj(li, defContainer, $);
-      result.termDefinitions.push({
+      entries.push({
         ...{...defObj}
       });
     }
     });
 
-    result.idioms.push({
+    result.phrases.push({
       phrase: title,
-      definitions
+      entries
     });
   });
 
-  // 3. Related terms: remaining <h3> with <a>
-  $('h3').each((_, el) => {
+  // 3. Extract remaining <h3> elements as related terms
+  $('h3.l').each((_, el) => {
     const $el = $(el);
     const next = $el.next();
     const hasOl = next.is('ol');
@@ -181,8 +175,12 @@ const parseDefinition = defHTML => {
 }
 
 
-export const parser = (html) => {
+export const parseDLEdata = html => {
+
   const $ = cheerio.load(html);
+  const headerTitle = $(".c-page-header__title").text();
+  if ((headerTitle.split("«")[0] + headerTitle.split("»")[1])==="La palabra  no está en el Diccionario.") return;
+
   const articles = $(".o-main__article");
   const entries = [];
   if (articles.length>1) {
